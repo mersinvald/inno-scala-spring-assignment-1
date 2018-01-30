@@ -21,7 +21,7 @@ class MessagesServlet extends ScalatraServlet with JacksonJsonSupport {
     val id = params("id")
     MessageStore.get(id) match {
         case Some(msg) => Ok(msg)
-        case None      => NotFound(Error("No message with id " + id))
+        case None      => NotFound(Errors.NotFoundError(id))
     }
   }
 
@@ -30,13 +30,23 @@ class MessagesServlet extends ScalatraServlet with JacksonJsonSupport {
   }
 
   put("/:id") {
-    val incomplete_msg = parsedBody.extract[IncompleteMsg]
-    val msg = Msg(params("id"), incomplete_msg.text)
-    MessageStore.put(msg)
+    val id = params("id")
+    if(MessageStore.contains(id)) {
+      val incomplete_msg = parsedBody.extract[IncompleteMsg]
+      val msg = Msg(params("id"), incomplete_msg.text)
+      MessageStore.put(msg)
+    } else {
+      NotFound(Errors.NotFoundError(id))
+    }
   }
 
   delete("/:id") {
-    MessageStore.delete(params("id"))
+    val id = params("id")
+    if(MessageStore.contains(id)) {
+      MessageStore.delete(params("id"))
+    } else {
+      NotFound(Errors.NotFoundError(id))
+    }
   }
 
   // Sets up automatic case class to JSON output serialization, required by
@@ -44,10 +54,15 @@ class MessagesServlet extends ScalatraServlet with JacksonJsonSupport {
   protected implicit lazy val jsonFormats: Formats = DefaultFormats
 }
 
-
 case class IncompleteMsg(text: String)
 case class Msg(id: String, text: String)
 case class Error(error: String)
+
+object Errors {
+  def NotFoundError(id: String): Error = {
+    Error("Message with id " + id + " not found")
+  }
+}
 
 object MessageStore {
   private var store: Map[String, Msg] = HashMap()
@@ -58,6 +73,10 @@ object MessageStore {
 
   def get(id: String) = {
     store.get(id)
+  }
+
+  def contains(id: String): Boolean = {
+    store.contains(id)
   }
 
   def put(message: Msg): Unit = {
